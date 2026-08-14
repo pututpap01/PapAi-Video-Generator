@@ -7,7 +7,7 @@ on:
 
 jobs:
   # =============================================================
-  # JOB 1: Build Android APK (Langsung Siap Download)
+  # JOB 1: Build Android APK (Siap Download)
   # =============================================================
   build-apk:
     name: 📱 Build Android APK
@@ -21,15 +21,31 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew || true
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Build Android APK (Debug & Release ready)
-        run: ./gradlew assembleDebug --stacktrace || gradle assembleDebug --stacktrace
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Upload APK ke GitHub Artifacts (Siap Download Langsung di HP)
+      - name: Prepare Keystore & Environment Files
+        run: |
+          # Generate debug.keystore from base64 if present or create standard debug keystore
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          else
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          touch .env
+          if [ -f ".env.example" ]; then
+            cp .env.example .env
+          fi
+
+      - name: Build Android APK
+        run: |
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK ke GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PAP-AI-Generator-App
@@ -52,14 +68,19 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Modal CLI
+      - name: Install Modal CLI & Dependencies
         run: |
           pip install modal fastapi pydantic uvicorn
 
       - name: Authenticate & Deploy to Modal
         env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || 'ak-hdnamdluuWZBMYTB2rLghU' }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || 'as-BvBUZx69tj3wSgpji9iM2b' }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
         run: |
-          modal token set --token-id "$MODAL_TOKEN_ID" --token-secret "$MODAL_TOKEN_SECRET"
+          TOKEN_ID="${MODAL_TOKEN_ID:-ak-hdnamdluuWZBMYTB2rLghU}"
+          TOKEN_SECRET="${MODAL_TOKEN_SECRET:-as-BvBUZx69tj3wSgpji9iM2b}"
+          echo "Configuring Modal token..."
+          modal token set --token-id "$TOKEN_ID" --token-secret "$TOKEN_SECRET"
+          echo "Deploying HunyuanVideo DiT backend..."
           modal deploy backend/app.py
+
