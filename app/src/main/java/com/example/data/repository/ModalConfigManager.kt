@@ -17,7 +17,7 @@ class ModalConfigManager(context: Context) {
     companion object {
         const val DEFAULT_ENDPOINT = "https://pututadif--hunyuanvideo-fastapi-fastapi-app.modal.run/generate"
         const val DEFAULT_TOKEN = "ak-hdnamdluuWZBMYTB2rLghU:as-BvBUZx69tj3wSgpji9iM2b"
-        const val DEFAULT_GPU = "NVIDIA H100 (80GB SXM5)"
+        const val DEFAULT_GPU = "NVIDIA T4 / A10G (Modal Free Tier)"
     }
 
     fun getConfig(): ModalConfig {

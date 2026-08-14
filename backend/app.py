@@ -86,9 +86,10 @@ SAMPLE_PHYSICS_CLIPS = {
 }
 
 # ===============================================================
-# GPU Worker Class (HunyuanVideo Diffusion Transformer)
+# GPU Worker Class (Physics Video Diffusion Transformer)
+# Menggunakan GPU "T4" / "A10G" / "any" yang gratis dan tidak memerlukan input kartu pembayaran/kartu kredit di Modal
 # ===============================================================
-@app.cls(gpu="H100", image=image, scaledown_window=300, timeout=600)
+@app.cls(gpu="T4", image=image, scaledown_window=300, timeout=600)
 class HunyuanVideoModel:
     @modal.enter()
     def initialize_gpu(self):
