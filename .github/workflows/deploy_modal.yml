@@ -1,0 +1,41 @@
+name: Deploy Python Backend to Modal.com
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy_modal.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-modal:
+    name: Deploy HunyuanVideo DiT Backend to Modal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Modal CLI
+        run: |
+          pip install modal fastapi pydantic uvicorn
+
+      - name: Configure Modal Authentication & Deploy
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          if [ -z "$MODAL_TOKEN_ID" ] || [ -z "$MODAL_TOKEN_SECRET" ]; then
+            echo "ERROR: Please set MODAL_TOKEN_ID and MODAL_TOKEN_SECRET in your GitHub Repository Secrets."
+            echo "Go to: GitHub Repo -> Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+          
+          # Set token and deploy
+          modal token set --token-id "$MODAL_TOKEN_ID" --token-secret "$MODAL_TOKEN_SECRET"
+          modal deploy backend/app.py

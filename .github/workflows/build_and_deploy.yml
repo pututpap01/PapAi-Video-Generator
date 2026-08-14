@@ -1,0 +1,65 @@
+name: Build Android APK Release & Deploy Modal
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  # =============================================================
+  # JOB 1: Build Android APK (Langsung Siap Download)
+  # =============================================================
+  build-apk:
+    name: 📱 Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew || true
+
+      - name: Build Android APK (Debug & Release ready)
+        run: ./gradlew assembleDebug --stacktrace || gradle assembleDebug --stacktrace
+
+      - name: Upload APK ke GitHub Artifacts (Siap Download Langsung di HP)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PAP-AI-Generator-App
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+  # =============================================================
+  # JOB 2: Deploy Python Backend ke Modal.com
+  # =============================================================
+  deploy-modal:
+    name: 🚀 Deploy Modal.com Backend (H100 DiT)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Modal CLI
+        run: |
+          pip install modal fastapi pydantic uvicorn
+
+      - name: Authenticate & Deploy to Modal
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID || 'ak-hdnamdluuWZBMYTB2rLghU' }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET || 'as-BvBUZx69tj3wSgpji9iM2b' }}
+        run: |
+          modal token set --token-id "$MODAL_TOKEN_ID" --token-secret "$MODAL_TOKEN_SECRET"
+          modal deploy backend/app.py
