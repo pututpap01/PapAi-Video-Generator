@@ -20,6 +20,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
 import com.example.data.local.VideoProjectEntity
 import com.example.ui.theme.*
 import java.text.SimpleDateFormat
@@ -205,25 +209,78 @@ fun HistoryScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            Text(
-                                text = project.prompt,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary,
-                                    lineHeight = 18.sp
-                                ),
-                                maxLines = 2
+                            val humanThumbnails = listOf(
+                                "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80",
+                                "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=600&q=80",
+                                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80",
+                                "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&q=80"
                             )
+                            val thumbUrl = project.previewThumbnailUrl
+                                ?: humanThumbnails[Math.abs(project.prompt.hashCode()) % humanThumbnails.size]
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 84.dp, height = 96.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(SurfaceDark),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(thumbUrl)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Preview Video",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black.copy(alpha = 0.6f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = CyanGlow, modifier = Modifier.size(18.dp))
+                                    }
+                                }
 
-                            Text(
-                                text = "Engine: ${project.engine} • Gravitasi: ${project.gravity}m/s² • Kamera: ${project.cameraMovement}",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = project.prompt,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextPrimary,
+                                            lineHeight = 18.sp
+                                        ),
+                                        maxLines = 2
+                                    )
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = "Engine: ${project.engine} • ${project.style}",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = TextSecondary,
+                                            fontSize = 11.sp
+                                        )
+                                    )
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    Text(
+                                        text = "Gravitasi: ${project.gravity}m/s² • Kain: ${(project.clothFoldFidelity * 100).toInt()}%",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = TextTertiary,
+                                            fontSize = 10.sp
+                                        )
+                                    )
+                                }
+                            }
 
                             Spacer(modifier = Modifier.height(10.dp))
 

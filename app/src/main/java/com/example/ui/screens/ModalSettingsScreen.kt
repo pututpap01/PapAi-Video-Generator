@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -212,77 +213,139 @@ fun ModalSettingsScreen(
                             )
                         )
 
+                        val uriHandler = LocalUriHandler.current
+
                         // Replicate API Token
-                        OutlinedTextField(
-                            value = replicateToken,
-                            onValueChange = { replicateToken = it },
-                            label = { Text("Replicate API Token (r8_...)") },
-                            placeholder = { Text("r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") },
-                            leadingIcon = {
-                                Icon(Icons.Default.VpnKey, contentDescription = null, tint = VioletNeon)
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = VioletNeon,
-                                unfocusedBorderColor = BorderSubtle,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            supportingText = {
-                                Text("Mendukung: HunyuanVideo 4K, Wan 2.1 14B, Luma Dream Machine & LTX-Video", fontSize = 10.sp, color = TextTertiary)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_replicate_token")
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Replicate API (Hunyuan & Wan 2.1)",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                                )
+                                TextButton(
+                                    onClick = { uriHandler.openUri("https://replicate.com/account/api-tokens") },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) {
+                                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = VioletNeon, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Ambil Token Replicate", fontSize = 11.sp, color = VioletNeon)
+                                }
+                            }
+                            OutlinedTextField(
+                                value = replicateToken,
+                                onValueChange = { replicateToken = it },
+                                label = { Text("Replicate API Token (r8_...)") },
+                                placeholder = { Text("r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.VpnKey, contentDescription = null, tint = VioletNeon)
+                                },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = VioletNeon,
+                                    unfocusedBorderColor = BorderSubtle,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                supportingText = {
+                                    Text("Link model: replicate.com/tencent/hunyuan-video & wan-video/wan-2.1-t2v-14b", fontSize = 10.sp, color = TextTertiary)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("input_replicate_token")
+                            )
+                        }
 
                         // Fal.ai API Key
-                        OutlinedTextField(
-                            value = falKey,
-                            onValueChange = { falKey = it },
-                            label = { Text("Fal.ai API Key (fal_...)") },
-                            placeholder = { Text("fal_xxxxxxxxxxxxxxxxxxxxxx") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberGlow)
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AmberGlow,
-                                unfocusedBorderColor = BorderSubtle,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            supportingText = {
-                                Text("Mendukung: Sub-minute ultrafast Kling & HunyuanVideo inference", fontSize = 10.sp, color = TextTertiary)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_fal_key")
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Fal.ai API (Ultra Fast Kling & DiT)",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                                )
+                                TextButton(
+                                    onClick = { uriHandler.openUri("https://fal.ai/dashboard/keys") },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) {
+                                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = AmberGlow, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Ambil Key Fal.ai", fontSize = 11.sp, color = AmberGlow)
+                                }
+                            }
+                            OutlinedTextField(
+                                value = falKey,
+                                onValueChange = { falKey = it },
+                                label = { Text("Fal.ai API Key (fal_...)") },
+                                placeholder = { Text("fal_xxxxxxxxxxxxxxxxxxxxxx") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Bolt, contentDescription = null, tint = AmberGlow)
+                                },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AmberGlow,
+                                    unfocusedBorderColor = BorderSubtle,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                supportingText = {
+                                    Text("Link model: fal.ai/models/fal-ai/hunyuan-video & kling-video", fontSize = 10.sp, color = TextTertiary)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("input_fal_key")
+                            )
+                        }
 
                         // Google Gemini / Veo 3.1 Key
-                        OutlinedTextField(
-                            value = geminiVeoKey,
-                            onValueChange = { geminiVeoKey = it },
-                            label = { Text("Google Gemini / Veo 3.1 API Key (Opsional)") },
-                            placeholder = { Text("AIzaSy...") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Videocam, contentDescription = null, tint = CyanGlow)
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = CyanGlow,
-                                unfocusedBorderColor = BorderSubtle,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            supportingText = {
-                                Text("Menggunakan kunci bawaan aplikasi secara otomatis jika dikosongkan.", fontSize = 10.sp, color = TextTertiary)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_gemini_veo_key")
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Google AI Studio (Veo 3.1 & Gemini)",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                                )
+                                TextButton(
+                                    onClick = { uriHandler.openUri("https://aistudio.google.com/app/apikey") },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) {
+                                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = CyanGlow, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Ambil Key AI Studio", fontSize = 11.sp, color = CyanGlow)
+                                }
+                            }
+                            OutlinedTextField(
+                                value = geminiVeoKey,
+                                onValueChange = { geminiVeoKey = it },
+                                label = { Text("Google Gemini / Veo 3.1 API Key (Opsional)") },
+                                placeholder = { Text("AIzaSy...") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Videocam, contentDescription = null, tint = CyanGlow)
+                                },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CyanGlow,
+                                    unfocusedBorderColor = BorderSubtle,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                supportingText = {
+                                    Text("Menggunakan kunci bawaan aplikasi secara otomatis jika dikosongkan.", fontSize = 10.sp, color = TextTertiary)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("input_gemini_veo_key")
+                            )
+                        }
 
                         // Preferred Resolution
                         Column {
