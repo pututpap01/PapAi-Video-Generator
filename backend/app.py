@@ -88,7 +88,7 @@ SAMPLE_PHYSICS_CLIPS = {
 # ===============================================================
 # GPU Worker Class (HunyuanVideo Diffusion Transformer)
 # ===============================================================
-@app.cls(gpu="H100", image=image, container_idle_timeout=300, timeout=600)
+@app.cls(gpu="H100", image=image, scaledown_window=300, timeout=600)
 class HunyuanVideoModel:
     @modal.enter()
     def initialize_gpu(self):
