@@ -31,7 +31,8 @@ class VideoGeneratorViewModel(application: Application) : AndroidViewModel(appli
     private val database = AppDatabase.getInstance(application)
     private val projectRepo = ProjectRepository(database.videoProjectDao())
     val modalConfigManager = ModalConfigManager(application)
-    private val videoRepo = VideoGenerationRepository(application, modalConfigManager)
+    val providersConfigManager = ApiProvidersConfigManager(application)
+    private val videoRepo = VideoGenerationRepository(application, modalConfigManager, providersConfigManager)
 
     // User inputs
     var prompt = MutableStateFlow("Seorang penari dalam gaun sutra mengalir bergerak anggun di bawah gravitasi alami dengan lipatan kain dinamis")
@@ -40,7 +41,7 @@ class VideoGeneratorViewModel(application: Application) : AndroidViewModel(appli
 
     var selectedAspectRatio = MutableStateFlow(AspectRatio.PORTRAIT_9_16)
     var selectedDuration = MutableStateFlow(5)
-    var selectedEngine = MutableStateFlow(VideoEngine.HUNYUAN_MODAL)
+    var selectedEngine = MutableStateFlow(VideoEngine.REPLICATE_HUNYUAN)
     var selectedStyle = MutableStateFlow(MotionStyle.HYPER_REALISTIC)
     var physicsSettings = MutableStateFlow(PhysicsSettings())
 

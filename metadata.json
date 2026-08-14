@@ -1,6 +1,6 @@
 {
   "name": "PAP AI GENERATOR",
-  "description": "Generate realistic human motion videos with real-world physics simulation, HunyuanVideo DiT on Modal.com FastAPI, and Google Veo 3.",
+  "description": "Generate realistic human motion videos with Replicate, Fal.ai, Google Veo 3.1, Wan 2.1 DiT, and HunyuanVideo Modal GPU.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

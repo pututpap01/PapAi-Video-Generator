@@ -47,6 +47,49 @@ interface ModalFastApiService {
     ): ResponseBody
 }
 
+interface ReplicateApiService {
+    @POST("v1/predictions")
+    suspend fun createPrediction(
+        @Header("Authorization") authHeader: String,
+        @Body request: ReplicatePredictionRequest
+    ): ReplicatePredictionResponse
+
+    @POST("v1/models/{model_owner}/{model_name}/predictions")
+    suspend fun createModelPrediction(
+        @Path("model_owner") modelOwner: String,
+        @Path("model_name") modelName: String,
+        @Header("Authorization") authHeader: String,
+        @Body request: ReplicatePredictionRequest
+    ): ReplicatePredictionResponse
+
+    @GET("v1/predictions/{prediction_id}")
+    suspend fun getPrediction(
+        @Header("Authorization") authHeader: String,
+        @Path("prediction_id") predictionId: String
+    ): ReplicatePredictionResponse
+}
+
+interface FalAiApiService {
+    @POST
+    suspend fun submitQueue(
+        @Url fullUrl: String,
+        @Header("Authorization") authHeader: String,
+        @Body request: Map<String, @JvmSuppressWildcards Any>
+    ): FalAiQueueResponse
+
+    @GET
+    suspend fun checkQueueStatus(
+        @Url statusUrl: String,
+        @Header("Authorization") authHeader: String
+    ): FalAiStatusResponse
+
+    @GET
+    suspend fun getResult(
+        @Url responseUrl: String,
+        @Header("Authorization") authHeader: String
+    ): FalAiVideoResult
+}
+
 object NetworkClientProvider {
     val moshi: Moshi = Moshi.Builder()
         .addLast(KotlinJsonAdapterFactory())
@@ -77,5 +120,23 @@ object NetworkClientProvider {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(ModalFastApiService::class.java)
+    }
+
+    val replicateService: ReplicateApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.replicate.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(ReplicateApiService::class.java)
+    }
+
+    val falAiService: FalAiApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://queue.fal.run/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(FalAiApiService::class.java)
     }
 }

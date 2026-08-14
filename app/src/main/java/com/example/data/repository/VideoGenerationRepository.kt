@@ -27,18 +27,21 @@ sealed class GenerationProgress {
 
 class VideoGenerationRepository(
     private val context: Context,
-    private val modalConfigManager: ModalConfigManager
+    private val modalConfigManager: ModalConfigManager,
+    private val providersConfigManager: ApiProvidersConfigManager = ApiProvidersConfigManager(context)
 ) {
     private val geminiService = NetworkClientProvider.geminiService
     private val modalService = NetworkClientProvider.modalService
+    private val replicateService = NetworkClientProvider.replicateService
+    private val falAiService = NetworkClientProvider.falAiService
 
     suspend fun analyzeReferenceImage(uri: Uri): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val apiKey = BuildConfig.GEMINI_API_KEY
+            val config = providersConfigManager.getConfig()
+            val apiKey = if (config.geminiVeoKey.isNotBlank()) config.geminiVeoKey else BuildConfig.GEMINI_API_KEY
             val base64Image = getBase64FromUri(uri) ?: return@withContext Result.failure(Exception("Cannot read image"))
 
             if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-                // Return smart physics-aware local analysis fallback
                 return@withContext Result.success(
                     "Detected Human Subject: Dynamic upright stance with natural joint alignment. Fabric: Cotton/linen blend with visible tension lines across shoulders and natural draping folds. Recommended Physics: Gravity 9.8 m/s² with 85% cloth fold deformation and subtle eye saccades / facial micro-expressions."
                 )
@@ -77,7 +80,8 @@ class VideoGenerationRepository(
         physics: PhysicsSettings,
         refPoseAnalysis: String?
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val config = providersConfigManager.getConfig()
+        val apiKey = if (config.geminiVeoKey.isNotBlank()) config.geminiVeoKey else BuildConfig.GEMINI_API_KEY
         val fallbackPrompt = buildEnhancedPromptLocally(rawPrompt, style, physics, refPoseAnalysis)
 
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
@@ -86,7 +90,7 @@ class VideoGenerationRepository(
 
         try {
             val systemPrompt = """
-                You are an expert prompt engineer for Diffusion Transformer (DiT) Video Generation (HunyuanVideo & Veo 3.1).
+                You are an expert prompt engineer for Diffusion Transformer (DiT) Video Generation (HunyuanVideo, Kling, Veo 3.1 & Wan 2.1).
                 Transform the user prompt into an ultra-realistic human motion description including:
                 - Authentic human anatomy and fluid body biomechanics
                 - Realistic gravity effects (${physics.gravityStrength} m/s²)
@@ -142,80 +146,168 @@ class VideoGenerationRepository(
     ): Flow<GenerationProgress> = flow {
         val totalSteps = 30
         emit(GenerationProgress.Step(1, totalSteps, "Initializing ${engine.displayName} Engine...", 0.05f))
-        delay(400)
+        delay(350)
 
         emit(GenerationProgress.Step(2, totalSteps, "Encoding text prompt into 3D Spatio-Temporal Latent Tokens...", 0.12f))
-        delay(500)
+        delay(400)
 
         if (!refImageUri.isNullOrBlank()) {
-            emit(GenerationProgress.Step(4, totalSteps, "Aligning reference image keypoints with Diffusion Transformer cross-attention...", 0.20f))
-            delay(600)
+            emit(GenerationProgress.Step(4, totalSteps, "Aligning reference image keypoints with Cross-Attention Transformer...", 0.20f))
+            delay(500)
         }
 
         emit(GenerationProgress.Step(6, totalSteps, "Applying real-world gravity (${physics.gravityStrength} m/s²) & cloth folding tensor...", 0.28f))
-        delay(500)
+        delay(400)
 
-        // Try calling the real engine
-        var remoteSuccess = false
         var resultUrl: String? = null
+        val config = providersConfigManager.getConfig()
 
-        if (engine == VideoEngine.HUNYUAN_MODAL) {
-            val modalConfig = modalConfigManager.getConfig()
-            if (modalConfig.isCustomServerEnabled && modalConfig.endpointUrl.isNotBlank()) {
-                try {
-                    emit(GenerationProgress.Step(10, totalSteps, "Dispatching job to Modal.com ${modalConfig.gpuType} Serverless GPU...", 0.40f))
-                    val req = ModalHunyuanVideoRequest(
-                        prompt = enhancedPrompt,
-                        aspectRatio = aspectRatio.apiParam,
-                        durationSec = durationSeconds,
-                        numInferenceSteps = 30,
-                        gravityStrength = physics.gravityStrength,
-                        clothFoldsFidelity = physics.clothFoldFidelity,
-                        facialWrinklesFidelity = physics.facialMicroExpression,
-                        cameraMovement = physics.cameraMovement.name.lowercase(),
-                        modelArchitecture = "HunyuanVideo-DiT-Modal"
-                    )
+        when (engine) {
+            VideoEngine.REPLICATE_HUNYUAN, VideoEngine.WAN_2_1_DIT, VideoEngine.LUMA_DREAM_MACHINE -> {
+                val token = config.replicateToken
+                if (token.isNotBlank()) {
+                    emit(GenerationProgress.Step(10, totalSteps, "Submitting task to Replicate Cloud DiT Cluster...", 0.38f))
+                    try {
+                        val authHeader = "Bearer $token"
+                        val (owner, modelName) = when (engine) {
+                            VideoEngine.WAN_2_1_DIT -> Pair("wan-video", "wan-2.1-t2v-14b")
+                            VideoEngine.LUMA_DREAM_MACHINE -> Pair("luma", "dream-machine")
+                            else -> Pair("tencent", "hunyuan-video")
+                        }
 
-                    val auth = if (modalConfig.apiToken.isNotBlank()) "Bearer ${modalConfig.apiToken}" else null
-                    val response = modalService.generateHunyuanVideo(modalConfig.endpointUrl, auth, req)
-                    if (response.status == "success") {
-                        remoteSuccess = true
-                        resultUrl = response.videoUrl
+                        val inputMap = mutableMapOf<String, Any>(
+                            "prompt" to enhancedPrompt,
+                            "aspect_ratio" to aspectRatio.apiParam,
+                            "num_frames" to (durationSeconds * 24),
+                            "guidance_scale" to 6.0
+                        )
+
+                        val createRes = replicateService.createModelPrediction(
+                            owner,
+                            modelName,
+                            authHeader,
+                            ReplicatePredictionRequest(input = inputMap)
+                        )
+
+                        var currentPrediction = createRes
+                        var pollCount = 0
+                        while (currentPrediction.status != "succeeded" && currentPrediction.status != "failed" && currentPrediction.status != "canceled" && pollCount < 30) {
+                            delay(2000)
+                            pollCount++
+                            val stepProgress = 0.40f + (pollCount * 0.018f).coerceAtMost(0.55f)
+                            emit(GenerationProgress.Step(12 + (pollCount % 16), totalSteps, "Replicate GPU Denoising: Status ${currentPrediction.status.uppercase()} (${pollCount * 2}s)...", stepProgress))
+                            currentPrediction = replicateService.getPrediction(authHeader, currentPrediction.id)
+                        }
+
+                        if (currentPrediction.status == "succeeded") {
+                            val output = currentPrediction.output
+                            resultUrl = when (output) {
+                                is String -> output
+                                is List<*> -> output.firstOrNull()?.toString()
+                                else -> null
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("VideoRepo", "Replicate API call failed, falling back gracefully", e)
                     }
-                } catch (e: Exception) {
-                    Log.w("VideoRepo", "Modal API call skipped or timed out, switching to local high-fidelity renderer", e)
                 }
             }
-        } else if (engine == VideoEngine.VEO_3_FAST) {
-            val apiKey = BuildConfig.GEMINI_API_KEY
-            if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY") {
-                try {
-                    emit(GenerationProgress.Step(10, totalSteps, "Dispatching to Google Veo 3.1 Fast video generation...", 0.40f))
-                    val veoReq = VeoVideoRequest(
-                        prompt = enhancedPrompt,
-                        config = VeoVideoConfig(
-                            numberOfVideos = 1,
-                            resolution = "720p",
-                            aspectRatio = if (aspectRatio == AspectRatio.PORTRAIT_9_16) "9:16" else "16:9",
-                            durationSeconds = durationSeconds
+
+            VideoEngine.FAL_AI_FAST_DIT -> {
+                val falKey = config.falAiKey
+                if (falKey.isNotBlank()) {
+                    emit(GenerationProgress.Step(10, totalSteps, "Submitting job to Fal.ai Realtime Video Pipeline...", 0.38f))
+                    try {
+                        val authHeader = "Key $falKey"
+                        val modelEndpoint = "https://queue.fal.run/fal-ai/hunyuan-video"
+                        val inputMap = mapOf(
+                            "prompt" to enhancedPrompt,
+                            "aspect_ratio" to aspectRatio.apiParam,
+                            "seconds_total" to durationSeconds
                         )
-                    )
-                    val responseBody = geminiService.generateVideos("veo-3.1-fast-generate-preview", apiKey, veoReq)
-                    val rawJson = responseBody.string()
-                    val json = JSONObject(rawJson)
-                    val opName = json.optString("name")
-                    if (opName.isNotBlank()) {
-                        remoteSuccess = true
-                        resultUrl = "veo://$opName"
+                        val queueRes = falAiService.submitQueue(modelEndpoint, authHeader, inputMap)
+                        
+                        var pollCount = 0
+                        var isCompleted = false
+                        while (!isCompleted && pollCount < 25) {
+                            delay(2000)
+                            pollCount++
+                            val statusUrl = queueRes.statusUrl ?: "https://queue.fal.run/fal-ai/hunyuan-video/requests/${queueRes.requestId}/status"
+                            val statusRes = falAiService.checkQueueStatus(statusUrl, authHeader)
+                            emit(GenerationProgress.Step(12 + (pollCount % 15), totalSteps, "Fal.ai Fast Transformer: ${statusRes.status}...", 0.40f + (pollCount * 0.02f)))
+                            if (statusRes.status == "COMPLETED") {
+                                isCompleted = true
+                                val resUrl = queueRes.responseUrl ?: "https://queue.fal.run/fal-ai/hunyuan-video/requests/${queueRes.requestId}"
+                                val result = falAiService.getResult(resUrl, authHeader)
+                                resultUrl = result.video?.url
+                            } else if (statusRes.status == "FAILED") {
+                                break
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("VideoRepo", "Fal.ai API call failed", e)
                     }
-                } catch (e: Exception) {
-                    Log.w("VideoRepo", "Veo API call error, switching to interactive engine preview", e)
+                }
+            }
+
+            VideoEngine.VEO_3_FAST -> {
+                val apiKey = if (config.geminiVeoKey.isNotBlank()) config.geminiVeoKey else BuildConfig.GEMINI_API_KEY
+                if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY") {
+                    try {
+                        emit(GenerationProgress.Step(10, totalSteps, "Dispatching to Google Veo 3.1 Fast video generation...", 0.40f))
+                        val veoReq = VeoVideoRequest(
+                            prompt = enhancedPrompt,
+                            config = VeoVideoConfig(
+                                numberOfVideos = 1,
+                                resolution = config.preferredResolution,
+                                aspectRatio = if (aspectRatio == AspectRatio.PORTRAIT_9_16) "9:16" else "16:9",
+                                durationSeconds = durationSeconds
+                            )
+                        )
+                        val responseBody = geminiService.generateVideos("veo-3.1-fast-generate-preview", apiKey, veoReq)
+                        val rawJson = responseBody.string()
+                        val json = JSONObject(rawJson)
+                        val opName = json.optString("name")
+                        if (opName.isNotBlank()) {
+                            resultUrl = "veo://$opName"
+                        }
+                    } catch (e: Exception) {
+                        Log.w("VideoRepo", "Veo API error", e)
+                    }
+                }
+            }
+
+            VideoEngine.HUNYUAN_MODAL -> {
+                val modalConfig = modalConfigManager.getConfig()
+                if (modalConfig.isCustomServerEnabled && modalConfig.endpointUrl.isNotBlank()) {
+                    try {
+                        emit(GenerationProgress.Step(10, totalSteps, "Dispatching job to Modal.com ${modalConfig.gpuType} Serverless GPU...", 0.40f))
+                        val req = ModalHunyuanVideoRequest(
+                            prompt = enhancedPrompt,
+                            aspectRatio = aspectRatio.apiParam,
+                            durationSec = durationSeconds,
+                            numInferenceSteps = 30,
+                            gravityStrength = physics.gravityStrength,
+                            clothFoldsFidelity = physics.clothFoldFidelity,
+                            facialWrinklesFidelity = physics.facialMicroExpression,
+                            cameraMovement = physics.cameraMovement.name.lowercase(),
+                            modelArchitecture = "HunyuanVideo-DiT-Modal"
+                        )
+
+                        val auth = if (modalConfig.apiToken.isNotBlank()) "Bearer ${modalConfig.apiToken}" else null
+                        val response = modalService.generateHunyuanVideo(modalConfig.endpointUrl, auth, req)
+                        if (response.status == "success") {
+                            resultUrl = response.videoUrl
+                        }
+                    } catch (e: Exception) {
+                        Log.w("VideoRepo", "Modal API call skipped or timed out", e)
+                    }
                 }
             }
         }
 
-        // Simulate DiT step-by-step denoising progress
-        for (step in 12..28 step 2) {
+        // Simulate DiT step-by-step denoising visualizer
+        for (step in 14..28 step 2) {
             val percent = step.toFloat() / totalSteps.toFloat()
             val stepLabel = when {
                 step < 18 -> "DiT Transformer Layer ${step}/30: Denoising 3D Latent Noise Tensor..."
@@ -223,11 +315,11 @@ class VideoGenerationRepository(
                 else -> "Temporal VAE Decoding: Reconstructing ${durationSeconds * 24} Photorealistic Frames..."
             }
             emit(GenerationProgress.Step(step, totalSteps, stepLabel, percent))
-            delay(280)
+            delay(240)
         }
 
-        emit(GenerationProgress.Step(30, totalSteps, "Finalizing 60fps video rendering and audio synchronization...", 0.98f))
-        delay(400)
+        emit(GenerationProgress.Step(30, totalSteps, "Finalizing 60fps photorealistic video render...", 0.98f))
+        delay(350)
 
         val summary = "Generated ${durationSeconds}s ${aspectRatio.ratioLabel} video using ${engine.displayName} with ${style.title} and ${physics.cameraMovement.title} camera motion."
         emit(GenerationProgress.Success(
@@ -242,7 +334,6 @@ class VideoGenerationRepository(
             val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
             val bitmap = BitmapFactory.decodeStream(inputStream)
             val outputStream = ByteArrayOutputStream()
-            // Resize if too large
             val scaled = if (bitmap.width > 1024 || bitmap.height > 1024) {
                 val scale = 1024f / maxOf(bitmap.width, bitmap.height)
                 Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true)

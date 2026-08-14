@@ -67,6 +67,8 @@ class ModalHunyuanVideoRequest(BaseModel):
     camera_movement: str = Field("dolly_zoom", description="Kinematic camera preset")
     reference_image_base64: Optional[str] = Field(None, description="Base64 encoded reference face/pose")
     model_architecture: str = Field("DiffusionTransformer_HunyuanVideo", description="Model engine name")
+    replicate_token: Optional[str] = Field(None, description="Optional Replicate API Token for cloud fallback")
+    fal_ai_key: Optional[str] = Field(None, description="Optional Fal.ai API Key")
 
 class ModalHunyuanVideoResponse(BaseModel):
     status: str = "success"

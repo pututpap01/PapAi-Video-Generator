@@ -61,13 +61,13 @@ fun EngineSelector(
             ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
-                    contentDescription = "Modal Config",
+                    contentDescription = "API & GPU Config",
                     tint = CyanGlow,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Modal.com Config",
+                    text = "API & GPU Config",
                     style = MaterialTheme.typography.labelSmall.copy(
                         color = CyanGlow,
                         fontWeight = FontWeight.SemiBold

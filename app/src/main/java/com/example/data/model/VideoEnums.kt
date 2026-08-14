@@ -20,10 +20,16 @@ enum class VideoEngine(
     val description: String,
     val isDitArchitecture: Boolean
 ) {
-    HUNYUAN_MODAL(
-        "HunyuanVideo (Modal.com)",
-        "DiT Open-Weights",
-        "Diffusion Transformer backend on Modal GPU with realistic gravity & cloth folds",
+    REPLICATE_HUNYUAN(
+        "Replicate HunyuanVideo 4K",
+        "Cloud DiT",
+        "Direct cloud-hosted 4K HunyuanVideo with authentic cloth folds & zero VRAM limits",
+        true
+    ),
+    FAL_AI_FAST_DIT(
+        "Fal.ai Fast Kling / DiT",
+        "Ultra Fast",
+        "Sub-minute cloud video generation with authentic fabric & motion kinematics",
         true
     ),
     VEO_3_FAST(
@@ -33,9 +39,21 @@ enum class VideoEngine(
         false
     ),
     WAN_2_1_DIT(
-        "Wan 2.1 DiT",
+        "Wan 2.1 14B DiT",
         "Open-Weights",
-        "Temporal Diffusion Transformer with photorealistic micro-expressions",
+        "Temporal Diffusion Transformer with photorealistic micro-expressions & cloth folds",
+        true
+    ),
+    LUMA_DREAM_MACHINE(
+        "Luma Dream Machine",
+        "Cinematic",
+        "Hyper-realistic camera choreography & dynamic fluid character interaction",
+        false
+    ),
+    HUNYUAN_MODAL(
+        "HunyuanVideo (Modal.com)",
+        "DiT Private GPU",
+        "Diffusion Transformer backend on Modal serverless GPU instance",
         true
     )
 }
