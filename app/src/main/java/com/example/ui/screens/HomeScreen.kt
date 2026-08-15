@@ -192,16 +192,30 @@ fun HomeScreen(
                             )
                         }
 
-                        TextButton(
+                        Button(
                             onClick = { viewModel.enhancePromptWithAI() },
                             enabled = !isEnhancing,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            modifier = Modifier.testTag("button_enhance_prompt")
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = VioletNeon.copy(alpha = 0.2f),
+                                contentColor = VioletNeon
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier
+                                .height(32.dp)
+                                .testTag("button_enhance_prompt")
                         ) {
                             if (isEnhancing) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(12.dp),
+                                    modifier = Modifier.size(14.dp),
                                     strokeWidth = 2.dp,
+                                    color = VioletNeon
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Menganalisis AI...",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
                                     color = VioletNeon
                                 )
                             } else {
@@ -211,15 +225,14 @@ fun HomeScreen(
                                     tint = VioletNeon,
                                     modifier = Modifier.size(14.dp)
                                 )
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (isEnhancing) "Enhancing..." else "AI Enhance DiT",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = VioletNeon,
-                                    fontWeight = FontWeight.Bold
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "AI Enhance DiT",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = VioletNeon
                                 )
-                            )
+                            }
                         }
                     }
 
@@ -229,8 +242,8 @@ fun HomeScreen(
                         value = prompt,
                         onValueChange = { viewModel.updatePrompt(it) },
                         placeholder = { Text("Contoh: Seorang penari berputar dengan gaun sutra di bawah gravitasi alami...") },
-                        minLines = 2,
-                        maxLines = 4,
+                        minLines = 3,
+                        maxLines = 6,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = CyanGlow,
                             unfocusedBorderColor = BorderSubtle,
@@ -245,13 +258,12 @@ fun HomeScreen(
                     // Quick Prompt Inspiration Chips
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         val samplePrompts = listOf(
-                            "Penari Gaun Sutra" to "Penari wanita bergerak anggun dengan gaun sutra mengalir dinamis, gravitasi natural dan lipatan kain halus",
-                            "Pelari Sprint 100m" to "Pelari atletik melakukan start sprint cepat, kontraksi otot realistis dan debu terangkat",
+                            "Penari Sutra" to "Penari wanita bergerak anggun dengan gaun sutra mengalir dinamis, gravitasi natural dan lipatan kain halus",
+                            "Pelari Sprint" to "Pelari atletik melakukan start sprint cepat, kontraksi otot realistis dan debu terangkat",
                             "Model Catwalk" to "Model profesional berjalan di runway fashion, kain satin berkilau dan langkah mantap"
                         )
                         samplePrompts.forEach { (label, text) ->
@@ -268,19 +280,19 @@ fun HomeScreen(
                 }
             }
 
-            // 4. Aspect Ratio Selector
-            AspectPicker(
-                selectedRatio = selectedRatio,
-                onRatioSelected = { viewModel.setAspectRatio(it) }
-            )
-
-            // 5. Reference Image & Gemini Vision Analysis
+            // 4. Reference Image & Gemini Vision Analysis
             ImageReferencePicker(
                 selectedImageUri = referenceImageUri,
                 poseAnalysis = referencePoseAnalysis,
                 isAnalyzing = isAnalyzingImage,
                 onImageSelected = { viewModel.setReferenceImage(it) },
                 onAnalyzeImage = { viewModel.analyzeReference(it) }
+            )
+
+            // 5. Aspect Ratio Selector (Dropdown Scrolldown)
+            AspectPicker(
+                selectedRatio = selectedRatio,
+                onRatioSelected = { viewModel.setAspectRatio(it) }
             )
 
             // 6. Style & Visual Filters

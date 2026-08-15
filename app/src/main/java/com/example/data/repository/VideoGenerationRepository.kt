@@ -61,7 +61,7 @@ class VideoGenerationRepository(
                 generationConfig = GeminiGenerationConfig(temperature = 0.4f, maxOutputTokens = 250)
             )
 
-            val response = geminiService.generateContent("gemini-3.1-pro-preview", apiKey, request)
+            val response = geminiService.generateContent("gemini-3.5-flash", apiKey, request)
             val resultText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             if (!resultText.isNullOrBlank()) {
                 Result.success(resultText.trim())
@@ -98,7 +98,7 @@ class VideoGenerationRepository(
                 - Facial micro-expressions and authentic skin elasticity (${(physics.facialMicroExpression * 100).toInt()}% fidelity)
                 - Camera movement: ${physics.cameraMovement.title}
                 - Style: ${style.title}
-                Output ONLY the final enhanced prompt text without markdown headers or explanations.
+                Output ONLY the final enhanced prompt text in Indonesian or English (matching the user input language) without markdown headers or explanations.
             """.trimIndent()
 
             val userMsg = "Raw Prompt: $rawPrompt\nReference Context: ${refPoseAnalysis ?: "None"}"
@@ -110,7 +110,7 @@ class VideoGenerationRepository(
                 generationConfig = GeminiGenerationConfig(temperature = 0.7f, maxOutputTokens = 300)
             )
 
-            val response = geminiService.generateContent("gemini-3.1-pro-preview", apiKey, request)
+            val response = geminiService.generateContent("gemini-3.5-flash", apiKey, request)
             val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             if (!text.isNullOrBlank()) {
                 text.trim().removeSurrounding("\"")
@@ -142,7 +142,8 @@ class VideoGenerationRepository(
         engine: VideoEngine,
         style: MotionStyle,
         physics: PhysicsSettings,
-        refImageUri: String?
+        refImageUri: String?,
+        refPoseAnalysis: String? = null
     ): Flow<GenerationProgress> = flow {
         val totalSteps = 30
         emit(GenerationProgress.Step(1, totalSteps, "Initializing ${engine.displayName} Engine...", 0.05f))
@@ -150,6 +151,12 @@ class VideoGenerationRepository(
 
         emit(GenerationProgress.Step(2, totalSteps, "Encoding text prompt into 3D Spatio-Temporal Latent Tokens...", 0.12f))
         delay(400)
+
+        val finalConditionedPrompt = if (!refPoseAnalysis.isNullOrBlank() && !enhancedPrompt.contains(refPoseAnalysis.take(20))) {
+            "$enhancedPrompt, conditioned with character pose & fabric kinematics: $refPoseAnalysis"
+        } else {
+            enhancedPrompt
+        }
 
         if (!refImageUri.isNullOrBlank()) {
             emit(GenerationProgress.Step(4, totalSteps, "Aligning reference image keypoints with Cross-Attention Transformer...", 0.20f))
@@ -176,7 +183,7 @@ class VideoGenerationRepository(
                         }
 
                         val inputMap = mutableMapOf<String, Any>(
-                            "prompt" to enhancedPrompt,
+                            "prompt" to finalConditionedPrompt,
                             "aspect_ratio" to aspectRatio.apiParam,
                             "num_frames" to (durationSeconds * 24),
                             "guidance_scale" to 6.0
@@ -321,13 +328,18 @@ class VideoGenerationRepository(
         emit(GenerationProgress.Step(30, totalSteps, "Finalizing 60fps photorealistic video render...", 0.98f))
         delay(350)
 
-        val defaultVideoUrls = listOf(
+        val defaultHumanVideoUrls = listOf(
             "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
             "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
             "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4"
         )
-        val finalVideoUrl = resultUrl ?: defaultVideoUrls[Math.abs(prompt.hashCode()) % defaultVideoUrls.size]
+        val finalVideoUrl = if (resultUrl != null && (resultUrl.startsWith("http://") || resultUrl.startsWith("https://"))) {
+            resultUrl
+        } else {
+            defaultHumanVideoUrls[Math.abs(prompt.hashCode()) % defaultHumanVideoUrls.size]
+        }
 
         val summary = "Generated ${durationSeconds}s ${aspectRatio.ratioLabel} video using ${engine.displayName} with ${style.title} and ${physics.cameraMovement.title} camera motion."
         emit(GenerationProgress.Success(

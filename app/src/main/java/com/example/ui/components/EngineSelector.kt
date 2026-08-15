@@ -2,16 +2,18 @@ package com.example.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.VideoEngine
 import com.example.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EngineSelector(
     selectedEngine: VideoEngine,
@@ -31,6 +34,8 @@ fun EngineSelector(
     onOpenModalSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -78,49 +83,51 @@ fun EngineSelector(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            VideoEngine.values().forEach { engine ->
-                val isSelected = engine == selectedEngine
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isSelected) SurfaceCardElevated else SurfaceCard,
-                    border = BorderStroke(
-                        width = if (isSelected) 1.5.dp else 1.dp,
-                        color = if (isSelected) VioletNeon else BorderSubtle
-                    ),
+        // Dropdown Menu Box Container
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = SurfaceCard,
+                border = BorderStroke(
+                    width = if (expanded) 1.5.dp else 1.dp,
+                    color = if (expanded) VioletNeon else BorderSubtle
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
+                    .testTag("dropdown_engine_selector")
+                    .clickable { expanded = !expanded }
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("engine_card_${engine.name.lowercase()}")
-                        .clickable { onEngineSelected(engine) }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(38.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (isSelected) {
-                                        Brush.linearGradient(listOf(VioletNeon, CyanGlow))
-                                    } else {
-                                        Brush.linearGradient(listOf(SurfaceCardElevated, BorderSubtle))
-                                    }
-                                ),
+                                .background(Brush.linearGradient(listOf(VioletNeon, CyanGlow))),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (engine.isDitArchitecture) Icons.Default.Code else Icons.Default.Videocam,
+                                imageVector = if (selectedEngine.isDitArchitecture) Icons.Default.Code else Icons.Default.Videocam,
                                 contentDescription = null,
-                                tint = if (isSelected) Color.White else TextSecondary,
+                                tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-
-                        Spacer(modifier = Modifier.width(12.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Row(
@@ -128,47 +135,143 @@ fun EngineSelector(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    text = engine.displayName,
+                                    text = selectedEngine.displayName,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) TextPrimary else TextPrimary.copy(alpha = 0.9f)
+                                        color = TextPrimary
                                     )
                                 )
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) VioletNeon.copy(alpha = 0.25f) else BorderSubtle)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .background(VioletNeon.copy(alpha = 0.25f))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
                                 ) {
                                     Text(
-                                        text = engine.badge,
+                                        text = selectedEngine.badge,
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 9.sp,
+                                            color = VioletNeon,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) VioletNeon else TextSecondary
+                                            fontSize = 9.sp
                                         )
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = engine.description,
+                                text = selectedEngine.description,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = TextSecondary,
                                     fontSize = 11.sp
-                                )
+                                ),
+                                maxLines = 1
                             )
                         }
-
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = { onEngineSelected(engine) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = VioletNeon,
-                                unselectedColor = TextTertiary
-                            )
-                        )
                     }
+
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                }
+            }
+
+            // Dropdown List Items
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier
+                    .background(SurfaceCardElevated)
+                    .border(BorderStroke(1.dp, BorderSubtle), RoundedCornerShape(12.dp))
+            ) {
+                VideoEngine.values().forEach { engine ->
+                    val isSelected = engine == selectedEngine
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(
+                                                if (isSelected) Brush.linearGradient(listOf(VioletNeon, CyanGlow))
+                                                else Brush.linearGradient(listOf(SurfaceDark, BorderSubtle))
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (engine.isDitArchitecture) Icons.Default.Code else Icons.Default.Videocam,
+                                            contentDescription = null,
+                                            tint = if (isSelected) Color.White else TextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = engine.displayName,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSelected) VioletNeon else TextPrimary
+                                                )
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(if (isSelected) VioletNeon.copy(alpha = 0.25f) else BorderSubtle)
+                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                                            ) {
+                                                Text(
+                                                    text = engine.badge,
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        color = if (isSelected) VioletNeon else TextSecondary,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = engine.description,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                color = if (isSelected) VioletNeon.copy(alpha = 0.8f) else TextSecondary,
+                                                fontSize = 10.sp
+                                            ),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = VioletNeon,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
+                        onClick = {
+                            onEngineSelected(engine)
+                            expanded = false
+                        },
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .testTag("engine_option_${engine.name.lowercase()}")
+                            .background(
+                                if (isSelected) VioletNeon.copy(alpha = 0.12f) else SurfaceCardElevated
+                            )
+                    )
                 }
             }
         }

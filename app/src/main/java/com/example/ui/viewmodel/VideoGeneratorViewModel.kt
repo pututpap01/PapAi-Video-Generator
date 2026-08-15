@@ -115,12 +115,14 @@ class VideoGeneratorViewModel(application: Application) : AndroidViewModel(appli
     fun enhancePromptWithAI() {
         viewModelScope.launch {
             isEnhancingPrompt.value = true
+            val currentRaw = prompt.value.ifBlank { "Seorang penari dalam gaun sutra mengalir bergerak anggun di bawah gravitasi alami dengan lipatan kain dinamis" }
             val result = videoRepo.enhancePrompt(
-                rawPrompt = prompt.value,
+                rawPrompt = currentRaw,
                 style = selectedStyle.value,
                 physics = physicsSettings.value,
                 refPoseAnalysis = referencePoseAnalysis.value
             )
+            prompt.value = result
             enhancedPrompt.value = result
             isEnhancingPrompt.value = false
         }
@@ -158,7 +160,8 @@ class VideoGeneratorViewModel(application: Application) : AndroidViewModel(appli
                 engine = engine,
                 style = style,
                 physics = physics,
-                refImageUri = refUri
+                refImageUri = refUri,
+                refPoseAnalysis = refAnalysis
             ).collect { progress ->
                 when (progress) {
                     is GenerationProgress.Step -> {
@@ -182,7 +185,7 @@ class VideoGeneratorViewModel(application: Application) : AndroidViewModel(appli
                             referencePoseAnalysis = refAnalysis,
                             videoUrl = progress.videoResultUrl,
                             localVideoPath = null,
-                            previewThumbnailUrl = null,
+                            previewThumbnailUrl = refUri,
                             gravity = physics.gravityStrength,
                             clothFoldFidelity = physics.clothFoldFidelity,
                             facialFidelity = physics.facialMicroExpression

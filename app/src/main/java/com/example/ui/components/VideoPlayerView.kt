@@ -1,10 +1,13 @@
 package com.example.ui.components
 
 import android.content.Intent
+import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
+import android.media.PlaybackParams
 import android.net.Uri
-import android.widget.MediaController
-import android.widget.VideoView
+import android.os.Build
+import android.view.Surface
+import android.view.TextureView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +40,7 @@ import coil.request.ImageRequest
 import com.example.data.local.VideoProjectEntity
 import com.example.data.model.AspectRatio
 import com.example.ui.theme.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun VideoPlayerView(
@@ -44,15 +49,23 @@ fun VideoPlayerView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember { mutableStateOf(true) }
     var currentPositionMs by remember { mutableStateOf(0) }
     var durationMs by remember { mutableStateOf(project.durationSeconds * 1000) }
     var playbackSpeed by remember { mutableStateOf(1.0f) }
     var showControls by remember { mutableStateOf(true) }
-    var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
+    var isMuted by remember { mutableStateOf(true) }
+    var hasPlaybackError by remember { mutableStateOf(false) }
 
-    // Human realistic backdrop images from CDN matching the style
+    var mediaPlayerRef by remember { mutableStateOf<MediaPlayer?>(null) }
+    var surfaceRef by remember { mutableStateOf<Surface?>(null) }
+
+    val aspectEnum = AspectRatio.values().find { it.ratioLabel == project.aspectRatio } ?: AspectRatio.PORTRAIT_9_16
+    val aspectRatioFloat = aspectEnum.widthRatio / aspectEnum.heightRatio
+
     val realisticHumanBackdrops = listOf(
         "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1080&q=80",
         "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1080&q=80",
@@ -62,22 +75,35 @@ fun VideoPlayerView(
     val backdropUrl = project.previewThumbnailUrl
         ?: realisticHumanBackdrops[Math.abs(project.prompt.hashCode()) % realisticHumanBackdrops.size]
 
-    val aspectEnum = AspectRatio.values().find { it.ratioLabel == project.aspectRatio } ?: AspectRatio.PORTRAIT_9_16
-    val aspectRatioFloat = aspectEnum.widthRatio / aspectEnum.heightRatio
+    val validVideoUrl = project.videoUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        ?: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
 
-    // Video URL to play
-    val videoUri = project.videoUrl?.let { Uri.parse(it) }
-
-    // Progress update timer
-    LaunchedEffect(videoViewRef, isPlaying) {
+    // Timer loop for progress updates
+    LaunchedEffect(mediaPlayerRef, isPlaying) {
         while (true) {
-            videoViewRef?.let { vv ->
-                if (vv.isPlaying) {
-                    currentPositionMs = vv.currentPosition
-                    if (vv.duration > 0) durationMs = vv.duration
-                }
+            mediaPlayerRef?.let { mp ->
+                try {
+                    if (mp.isPlaying) {
+                        currentPositionMs = mp.currentPosition
+                        if (mp.duration > 0) durationMs = mp.duration
+                        isBuffering = false
+                    }
+                } catch (_: Exception) {}
             }
-            kotlinx.coroutines.delay(200)
+            delay(150)
+        }
+    }
+
+    // Clean up MediaPlayer on disposal
+    DisposableEffect(validVideoUrl) {
+        onDispose {
+            try {
+                mediaPlayerRef?.stop()
+                mediaPlayerRef?.release()
+                mediaPlayerRef = null
+                surfaceRef?.release()
+                surfaceRef = null
+            } catch (_: Exception) {}
         }
     }
 
@@ -88,13 +114,16 @@ fun VideoPlayerView(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Header Bar with Badges
+            // Top Bar Badges
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -134,7 +163,7 @@ fun VideoPlayerView(
                             .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text = "REAL 1080P",
+                            text = "LIVE MOTION",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = EmeraldGlow,
                                 fontWeight = FontWeight.Bold,
@@ -144,101 +173,171 @@ fun VideoPlayerView(
                     }
                 }
 
-                IconButton(
-                    onClick = {
-                        val shareIntent = Intent().apply {
-                            action = Intent.ACTION_SEND
-                            putExtra(Intent.EXTRA_TEXT, "Lihat video manusia realistik yang dihasilkan dengan ${project.engine}:\n${project.videoUrl ?: project.prompt}")
-                            type = "text/plain"
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Bagikan Video"))
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = "Share Video", tint = CyanGlow, modifier = Modifier.size(18.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(
+                        onClick = {
+                            try {
+                                uriHandler.openUri(validVideoUrl)
+                            } catch (_: Exception) {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(validVideoUrl))
+                                context.startActivity(intent)
+                            }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = "Buka Link Video",
+                            tint = CyanGlow,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            val shareIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(
+                                    Intent.EXTRA_TEXT,
+                                    "Video gerakan manusia realistis hasil ${project.engine}:\n$validVideoUrl"
+                                )
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Bagikan Video"))
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share Video",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Main Real Video Viewport
+            // Main Video Viewport (TextureView-backed Hardware Video Player)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 240.dp, max = 380.dp)
+                    .heightIn(min = 260.dp, max = 380.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(BackgroundDark)
                     .clickable { showControls = !showControls },
                 contentAlignment = Alignment.Center
             ) {
-                // Background Poster / Fallback Real Human Photo
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(backdropUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Realistic Human Visual",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Dark cinematic overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.Black.copy(alpha = 0.3f),
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.7f)
-                                )
-                            )
-                        )
-                )
-
-                // Native Hardware Video Player (Streams authentic MP4 human motion)
-                if (videoUri != null) {
-                    AndroidView(
-                        factory = { ctx ->
-                            VideoView(ctx).apply {
-                                setVideoURI(videoUri)
-                                setOnPreparedListener { mp ->
-                                    mp.isLooping = true
-                                    mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
-                                    isBuffering = false
-                                    if (isPlaying) {
-                                        start()
-                                    }
-                                }
-                                setOnErrorListener { _, _, _ ->
-                                    isBuffering = false
-                                    true // Handled gracefully
-                                }
-                                videoViewRef = this
-                            }
-                        },
-                        update = { view ->
-                            if (isPlaying && !view.isPlaying) {
-                                view.start()
-                            } else if (!isPlaying && view.isPlaying) {
-                                view.pause()
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .aspectRatio(aspectRatioFloat)
-                            .clip(RoundedCornerShape(8.dp))
+                // Background Poster / Fallback Image (shown while buffering or if video error)
+                if (isBuffering || hasPlaybackError) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(backdropUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Realistic Human Visual",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
 
-                // Buffering indicator
-                if (isBuffering) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(36.dp),
-                        color = CyanGlow,
-                        strokeWidth = 3.dp
-                    )
+                // Hardware-Accelerated TextureView Video Player
+                AndroidView(
+                    factory = { ctx ->
+                        TextureView(ctx).apply {
+                            surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                                override fun onSurfaceTextureAvailable(st: SurfaceTexture, width: Int, height: Int) {
+                                    val surface = Surface(st)
+                                    surfaceRef = surface
+                                    try {
+                                        val mp = MediaPlayer().apply {
+                                            setDataSource(ctx, Uri.parse(validVideoUrl))
+                                            setSurface(surface)
+                                            isLooping = true
+                                            setVolume(if (isMuted) 0f else 1f, if (isMuted) 0f else 1f)
+                                            setOnPreparedListener { player ->
+                                                isBuffering = false
+                                                hasPlaybackError = false
+                                                if (isPlaying) {
+                                                    player.start()
+                                                }
+                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                                    try {
+                                                        player.playbackParams = PlaybackParams().apply {
+                                                            speed = playbackSpeed
+                                                        }
+                                                    } catch (_: Exception) {}
+                                                }
+                                            }
+                                            setOnBufferingUpdateListener { _, _ ->
+                                                isBuffering = false
+                                            }
+                                            setOnErrorListener { _, _, _ ->
+                                                isBuffering = false
+                                                hasPlaybackError = true
+                                                true
+                                            }
+                                            prepareAsync()
+                                        }
+                                        mediaPlayerRef = mp
+                                    } catch (e: Exception) {
+                                        hasPlaybackError = true
+                                        isBuffering = false
+                                    }
+                                }
+
+                                override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, width: Int, height: Int) {}
+                                override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
+                                    mediaPlayerRef?.stop()
+                                    mediaPlayerRef?.release()
+                                    mediaPlayerRef = null
+                                    surfaceRef?.release()
+                                    surfaceRef = null
+                                    return true
+                                }
+                                override fun onSurfaceTextureUpdated(st: SurfaceTexture) {
+                                    isBuffering = false
+                                }
+                            }
+                        }
+                    },
+                    update = {
+                        mediaPlayerRef?.let { mp ->
+                            try {
+                                if (isPlaying && !mp.isPlaying) {
+                                    mp.start()
+                                } else if (!isPlaying && mp.isPlaying) {
+                                    mp.pause()
+                                }
+                                mp.setVolume(if (isMuted) 0f else 1f, if (isMuted) 0f else 1f)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    mp.playbackParams = PlaybackParams().apply { speed = playbackSpeed }
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(aspectRatioFloat)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+
+                // Buffering Spinner
+                if (isBuffering && !hasPlaybackError) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.7f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(30.dp),
+                            color = CyanGlow,
+                            strokeWidth = 3.dp
+                        )
+                    }
                 }
 
                 // Play / Pause Center Overlay Button
@@ -246,8 +345,10 @@ fun VideoPlayerView(
                     IconButton(
                         onClick = {
                             isPlaying = !isPlaying
-                            videoViewRef?.let {
-                                if (isPlaying) it.start() else it.pause()
+                            mediaPlayerRef?.let {
+                                try {
+                                    if (isPlaying) it.start() else it.pause()
+                                } catch (_: Exception) {}
                             }
                         },
                         modifier = Modifier
@@ -261,9 +362,30 @@ fun VideoPlayerView(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = CyanGlow,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(34.dp)
                         )
                     }
+                }
+
+                // Mute / Unmute Button in Top Right of video
+                IconButton(
+                    onClick = {
+                        isMuted = !isMuted
+                        mediaPlayerRef?.setVolume(if (isMuted) 0f else 1f, if (isMuted) 0f else 1f)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.6f))
+                ) {
+                    Icon(
+                        imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        contentDescription = "Mute / Unmute",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
 
                 // Bottom HUD: Video timeline, duration, physics tags
@@ -273,13 +395,12 @@ fun VideoPlayerView(
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f))
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.92f))
                             )
                         )
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Column {
-                        // Time & Physics HUD
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -314,8 +435,11 @@ fun VideoPlayerView(
                             }
                         }
 
-                        // Progress bar
-                        val progressFraction = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+                        // Progress bar (Interactive Scrubbing Indicator)
+                        val progressFraction = if (durationMs > 0) {
+                            (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                        } else 0f
+
                         LinearProgressIndicator(
                             progress = { progressFraction },
                             modifier = Modifier
@@ -345,18 +469,24 @@ fun VideoPlayerView(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Action Buttons (Speed, Regenerate, Replay)
+            // Speed chips & Regenerate button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Playback speed chips
                 listOf(0.5f, 1.0f, 1.5f, 2.0f).forEach { speed ->
                     val isSpeedSelected = playbackSpeed == speed
                     FilterChip(
                         selected = isSpeedSelected,
-                        onClick = { playbackSpeed = speed },
+                        onClick = {
+                            playbackSpeed = speed
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                try {
+                                    mediaPlayerRef?.playbackParams = PlaybackParams().apply { this.speed = speed }
+                                } catch (_: Exception) {}
+                            }
+                        },
                         label = {
                             Text(
                                 text = "${speed}x",
@@ -385,9 +515,19 @@ fun VideoPlayerView(
                         .height(32.dp)
                         .testTag("button_regenerate_video")
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(14.dp)
+                    )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Regenerate", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Regenerate",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
